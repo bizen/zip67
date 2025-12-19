@@ -477,13 +477,175 @@
             </div>
         </div>
 
-        <div id="room-info" class="room-info" title="Click to copy link">
-            LINK: <span id="room-link">...</span>
+        <div class="connection-layout">
+            <div id="room-info" class="room-info" title="Click to copy link">
+                <div style="display:flex; align-items:baseline; gap:12px;">
+                    <div style="font-size:1.2rem; font-weight:black;">ID: <span id="room-link">...</span></div>
+                    <small
+                        style="font-size:0.65rem; color:#999; font-weight:bold; letter-spacing:0.5px; white-space:nowrap;">CLICK
+                        TO COPY LINK</small>
+                </div>
+            </div>
+
+            <div class="manual-join">
+                <input type="text" id="manual-id-input" placeholder="ENTER ID (6 digit)" maxlength="6">
+                <button id="join-btn">JOIN</button>
+            </div>
         </div>
-        <button onclick="window.location.href = window.location.pathname" class="refresh-btn">REFRESH ID ↻</button>
+
+        <div class="footer-controls">
+            <div class="footer-spacer"></div>
+            <button onclick="window.location.href = window.location.pathname" class="refresh-btn">REFRESH ID ↻</button>
+            <div class="role-container">
+                <span id="role-indicator" class="role-indicator">YOU: ...</span>
+            </div>
+        </div>
 
         <style>
+            .footer-controls {
+                margin-top: 1.5rem;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                width: 100%;
+                max-width: 750px;
+                padding: 0 1rem;
+            }
+
+            .footer-spacer,
+            .role-container {
+                flex: 1;
+                display: flex;
+                /* Ensure spacer takes up same layout space logic */
+            }
+
+            .role-container {
+                justify-content: flex-start;
+                /* Place badge immediately next to center? No, user said 'next to'. */
+                /* If we want it 'next to' but button centered, we need the badge to form the right flank. */
+                /* Justify start pushes it close to the center button relative to the right space? No. */
+                /* If spacer is flex:1, and role-container is flex:1. center element is centered. */
+                /* Content inside role-container: justify-content: flex-start puts it near the button. */
+                justify-content: flex-start;
+                padding-left: 1.5rem;
+            }
+
+            .refresh-btn {
+                /* Remove margin-top as container handles it */
+                margin-top: 0 !important;
+                flex: 0 0 auto;
+            }
+
+            .role-indicator {
+                font-weight: 700;
+                text-transform: uppercase;
+                font-size: 0.8rem;
+                background: var(--black);
+                color: white;
+                padding: 0.3rem 0.6rem;
+                transform: rotate(-2deg);
+                box-shadow: 3px 3px 0 var(--secondary);
+                letter-spacing: 1px;
+                white-space: nowrap;
+            }
+
+            @media (max-width: 600px) {
+                .footer-controls {
+                    flex-direction: column;
+                    gap: 1rem;
+                }
+
+                .footer-spacer {
+                    display: none;
+                }
+
+                .role-container {
+                    padding-left: 0;
+                    justify-content: center;
+                }
+            }
+
+            .connection-layout {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                gap: 1.5rem;
+                margin-top: 2rem;
+                width: 100%;
+                max-width: 750px;
+                place-items: center;
+                justify-content: center;
+            }
+
+            /* ... (keep existing CSS for .room-info, .manual-join etc) ... */
+
+            /* Override place-items for children to stretch */
+            .room-info,
+            .manual-join {
+                width: 100%;
+                /* ... other styles remain in next block but we need to ensure they match */
+            }
+
+            .room-info,
+            .manual-join {
+                /* Removed flex: 1 and min-width as grid handles it */
+                height: 60px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                /* Reset specific styles */
+                margin-top: 0 !important;
+                background: white;
+                border: var(--border);
+                box-shadow: var(--shadow);
+                transition: transform 0.1s;
+                font-size: 1rem;
+            }
+
+            .room-info:hover,
+            .manual-join:hover {
+                transform: translate(-3px, -3px);
+                box-shadow: 10px 10px 0px var(--black);
+            }
+
+            /* Fix nested element styles */
+            .manual-join {
+                padding: 0;
+            }
+
+            .manual-join input {
+                border: none;
+                padding: 0 1rem;
+                font-family: var(--font-stack);
+                font-size: 1rem;
+                width: 100%;
+                height: 100%;
+                /* Fill container */
+                text-transform: uppercase;
+                outline: none;
+                background: transparent;
+            }
+
+            .manual-join button {
+                border: none;
+                border-left: var(--border);
+                background: var(--accent);
+                padding: 0 1.5rem;
+                height: 100%;
+                /* Fill container */
+                font-weight: bold;
+                cursor: pointer;
+                font-family: var(--font-stack);
+                font-size: 1rem;
+                transition: all 0.2s;
+            }
+
+            .manual-join button:hover {
+                background: var(--black);
+                color: var(--accent);
+            }
+
             /* File List Styles */
+
             .file-list {
                 width: 100%;
                 margin-top: 1rem;
@@ -720,38 +882,46 @@
             let hash = window.location.hash.replace('#', '');
 
             if (!hash) {
+                // SENDER MODE
                 role = 'sender';
                 myId = generateId();
                 window.location.hash = myId;
                 initPeer(myId);
                 showView('lobby');
                 setStatus("WAITING");
+                $('role-indicator').innerText = "YOU: SENDER";
             } else {
+                // RECEIVER MODE
                 role = 'receiver';
                 initPeer(null);
                 showView('receiving');
                 setStatus("CONNECTING...");
+                $('role-indicator').innerText = "YOU: RECEIVER";
             }
 
-            // Simplify displayed link (remove protocol and www)
-            els.link.innerText = window.location.href.replace(/(^\w+:|^)\/\/(www\.)?/, '');
+            // Display just the ID
+            const currentId = window.location.hash.replace('#', '');
+            els.link.innerText = currentId;
 
             els.roomInfo.onclick = () => {
                 navigator.clipboard.writeText(window.location.href);
                 // Keep the text element, just change content temporarily
-                const originalText = els.roomInfo.innerHTML;
-                els.roomInfo.innerHTML = "<span>LINK COPIED!</span>";
+                const originalHTML = els.roomInfo.innerHTML;
 
-                // Restore original simplified link when reverting
+                // Show copied feedback preserving the layout
+                els.roomInfo.innerHTML = `<div style="display:flex; align-items:baseline; gap:12px;">
+                     <div style="font-size:1.2rem; font-weight:black; color:var(--accent);">LINK COPIED!</div>
+                     <small style="font-size:0.65rem; font-weight:bold; white-space:nowrap;">READY TO SHARE</small>
+                </div>`;
+
+                // Restore original logic
                 setTimeout(() => {
-                    els.roomInfo.innerHTML = originalText;
-                    // Re-bind click handler if needed? No, innerHTML replacement might strip listeners on children if not careful. 
-                    // But here we replace roomInfo's innerHTML entirely so it's fine.
-                    // Actually, wait. If we replace innerHTML of roomInfo, we lose the span structure of "LINK: <span id='room-link'>...</span>".
-                    // The originalText captures that structure. So restoring it restores the structure.
-                    // BUT, `els.link` ref might be lost? 
-                    // `els.link` is defined as $('room-link'). If we restore HTML, we need to ensure `els.link` is still valid for future if needed.
-                    // In this app, we only set it once. So restoring HTML is fine.
+                    els.roomInfo.innerHTML = originalHTML;
+                    // Note: els.link reference is pointing to the OLD span. 
+                    // When we restore innerHTML, that span is re-created.
+                    // We need to re-acquire the reference or just ensure we don't need it dynamically after this.
+                    // Since we mainly set it at init, it should be fine.
+                    // But if we generated a NEW ID (Refresh), we would reload the page anyway.
                 }, 2000);
             };
         }
@@ -952,8 +1122,27 @@
             URL.revokeObjectURL(url);
         }
 
+        function setupManualJoin() {
+            const btn = $('join-btn');
+            const input = $('manual-id-input');
+
+            const join = () => {
+                const code = input.value.trim().toUpperCase();
+                if (code.length > 0) {
+                    window.location.hash = code;
+                    window.location.reload();
+                }
+            };
+
+            btn.onclick = join;
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') join();
+            });
+        }
+
         // --- BOOTSTRAP ---
         setupDragAndDrop();
+        setupManualJoin();
         init();
     </script>
 </body>
