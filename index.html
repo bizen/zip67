@@ -732,12 +732,26 @@
                 setStatus("CONNECTING...");
             }
 
-            els.link.innerText = window.location.href;
+            // Simplify displayed link (remove protocol and www)
+            els.link.innerText = window.location.href.replace(/(^\w+:|^)\/\/(www\.)?/, '');
+
             els.roomInfo.onclick = () => {
                 navigator.clipboard.writeText(window.location.href);
+                // Keep the text element, just change content temporarily
                 const originalText = els.roomInfo.innerHTML;
                 els.roomInfo.innerHTML = "<span>LINK COPIED!</span>";
-                setTimeout(() => els.roomInfo.innerHTML = originalText, 2000);
+
+                // Restore original simplified link when reverting
+                setTimeout(() => {
+                    els.roomInfo.innerHTML = originalText;
+                    // Re-bind click handler if needed? No, innerHTML replacement might strip listeners on children if not careful. 
+                    // But here we replace roomInfo's innerHTML entirely so it's fine.
+                    // Actually, wait. If we replace innerHTML of roomInfo, we lose the span structure of "LINK: <span id='room-link'>...</span>".
+                    // The originalText captures that structure. So restoring it restores the structure.
+                    // BUT, `els.link` ref might be lost? 
+                    // `els.link` is defined as $('room-link'). If we restore HTML, we need to ensure `els.link` is still valid for future if needed.
+                    // In this app, we only set it once. So restoring HTML is fine.
+                }, 2000);
             };
         }
 
