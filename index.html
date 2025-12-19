@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>zip67 - p2p file drop</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap"
+        rel="stylesheet">
+    <!-- PeerJS -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #f0f0f0;
+            --dot-color: #d4d4d4;
+            --accent: #BFFF00;
+            /* Acid Green */
+            --accent-hover: #99cc00;
+            --secondary: #FF00FF;
+            /* Magenta for Brutal contrast */
+            --black: #1a1a1a;
+            --border: 3px solid var(--black);
+            --shadow-depth: 8px;
+            --shadow: var(--shadow-depth) var(--shadow-depth) 0px var(--black);
+            --shadow-hover: 4px 4px 0px var(--black);
+            --font-stack: 'Space Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: radial-gradient(var(--dot-color) 1px, transparent 1px);
+            background-size: 20px 20px;
+            color: var(--black);
+            font-family: var(--font-stack);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 1.5rem;
+        }
+
+        /* BRUTALIST SCROLLBAR */
+        ::-webkit-scrollbar {
+            width: 12px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-color);
+            border-left: var(--border);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--black);
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--secondary);
+        }
+
+        /* MARQUEE */
+        .marquee-container {
+            width: 100%;
+            overflow: hidden;
+            border-bottom: var(--border);
+            border-top: var(--border);
+            background: var(--accent);
+            margin-bottom: 2rem;
+            white-space: nowrap;
+            padding: 0.5rem 0;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 5;
+            transform: rotate(-1deg) scale(1.02);
+            box-shadow: 0 4px 0 rgba(0, 0, 0, 0.1);
+        }
+
+        .marquee-content {
+            display: inline-block;
+            animation: marquee 20s linear infinite;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 1rem;
+        }
+
+        @keyframes marquee {
+            0% {
+                transform: translateX(0);
+            }
+
+            100% {
+                transform: translateX(-50%);
+            }
+        }
+
+        /* HEADER */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            border: var(--border);
+            box-shadow: var(--shadow);
+            margin-top: 3rem;
+            /* Space for marquee */
+            margin-bottom: 2rem;
+            background: white;
+            z-index: 10;
+            position: relative;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: -2px;
+            background: var(--black);
+            color: white;
+            padding: 0.2rem 1rem;
+            transform: skew(-5deg);
+        }
+
+        .status-badge {
+            font-size: 0.9rem;
+            padding: 0.8rem 1.5rem;
+            background: white;
+            border: var(--border);
+            font-weight: 700;
+            text-transform: uppercase;
+            box-shadow: 4px 4px 0px var(--black);
+            transition: all 0.2s;
+        }
+
+        .status-badge.active {
+            background: var(--secondary);
+            color: white;
+        }
+
+        /* MAIN CONTAINER */
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* CARD */
+        .card {
+            width: 100%;
+            max-width: 650px;
+            background: white;
+            border: var(--border);
+            box-shadow: var(--shadow);
+            padding: 3rem;
+            text-align: center;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: -10px;
+            width: 100%;
+            height: 100%;
+            border: var(--border);
+            z-index: -1;
+            background: var(--accent);
+        }
+
+        .card:hover {
+            transform: translate(-4px, -4px);
+            box-shadow: 12px 12px 0px var(--black);
+        }
+
+        .card:hover::before {
+            transform: translate(8px, 8px);
+        }
+
+        /* DROP ZONE STATES */
+        .drop-zone {
+            min-height: 350px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            border: 3px dashed #aaa;
+            background: #fff;
+            transition: all 0.2s;
+            position: relative;
+            padding: 2rem;
+        }
+
+        .drop-zone:hover {
+            border-color: var(--black);
+            background: #fafafa;
+        }
+
+        .drop-zone.active {
+            background: var(--accent);
+            border: var(--border);
+            animation: shake 0.5s infinite;
+        }
+
+        @keyframes shake {
+            0% {
+                transform: translate(1px, 1px) rotate(0deg);
+            }
+
+            10% {
+                transform: translate(-1px, -2px) rotate(-1deg);
+            }
+
+            20% {
+                transform: translate(-3px, 0px) rotate(1deg);
+            }
+
+            30% {
+                transform: translate(3px, 2px) rotate(0deg);
+            }
+
+            40% {
+                transform: translate(1px, -1px) rotate(1deg);
+            }
+
+            50% {
+                transform: translate(-1px, 2px) rotate(-1deg);
+            }
+
+            60% {
+                transform: translate(-3px, 1px) rotate(0deg);
+            }
+
+            70% {
+                transform: translate(3px, 1px) rotate(-1deg);
+            }
+
+            80% {
+                transform: translate(-1px, -1px) rotate(1deg);
+            }
+
+            90% {
+                transform: translate(1px, 2px) rotate(0deg);
+            }
+
+            100% {
+                transform: translate(1px, -2px) rotate(-1deg);
+            }
+        }
+
+        .drop-zone h2 {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+            background: var(--black);
+            color: white;
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            transform: rotate(-1deg);
+        }
+
+        .drop-zone p {
+            font-size: 1rem;
+            margin-top: 1rem;
+            line-height: 1.6;
+            max-width: 80%;
+        }
+
+        .drop-zone .big-icon {
+            font-size: 5rem;
+            margin-bottom: 1.5rem;
+            filter: drop-shadow(4px 4px 0px rgba(0, 0, 0, 0.2));
+            transition: transform 0.2s;
+        }
+
+        .drop-zone:hover .big-icon {
+            transform: scale(1.1) rotate(5deg);
+        }
+
+        /* PROGRESS BAR */
+        .progress-container {
+            width: 100%;
+            height: 50px;
+            /* Thicker */
+            border: var(--border);
+            background: white;
+            margin-top: 2.5rem;
+            position: relative;
+            display: none;
+            box-shadow: 4px 4px 0px var(--black);
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: repeating-linear-gradient(45deg,
+                    var(--accent),
+                    var(--accent) 10px,
+                    var(--accent-hover) 10px,
+                    var(--accent-hover) 20px);
+            width: 0%;
+            transition: width 0.1s linear;
+            border-right: var(--border);
+        }
+
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: 700;
+            font-size: 1.2rem;
+            z-index: 2;
+            background: white;
+            padding: 0.2rem 0.5rem;
+            border: 2px solid black;
+            box-shadow: 2px 2px 0px black;
+        }
+
+        /* FOOTER INFO */
+        .room-info {
+            margin-top: 3rem;
+            font-size: 0.9rem;
+            background: white;
+            color: black;
+            padding: 1rem 2rem;
+            cursor: pointer;
+            border: var(--border);
+            box-shadow: var(--shadow);
+            font-weight: 700;
+            transition: transform 0.1s;
+        }
+
+        .room-info:hover {
+            background: var(--black);
+            color: var(--accent);
+            transform: translate(-2px, -2px);
+            box-shadow: 8px 8px 0px var(--accent);
+        }
+
+        .room-info:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0px var(--accent);
+        }
+
+        .room-info span {
+            border-bottom: 2px solid var(--black);
+        }
+
+        /* UTILS */
+        .hidden {
+            display: none !important;
+        }
+
+        .blink {
+            animation: blink 0.5s step-end infinite alternate;
+        }
+
+        @keyframes blink {
+            0% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0;
+            }
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .card {
+                padding: 1.5rem;
+            }
+
+            .marquee-container {
+                font-size: 0.8rem;
+            }
+
+            body {
+                padding: 1rem;
+            }
+
+            header {
+                margin-top: 2.5rem;
+                flex-direction: column;
+                gap: 1rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="marquee-container">
+        <div class="marquee-content">
+            P2P FILE DROP // NO SERVER // ENCRYPTED // ZIP67 // DIRECT TRANSFER // NO LOGS // SPEED OF LIGHT // P2P FILE
+            DROP // NO SERVER // ENCRYPTED // ZIP67 // DIRECT TRANSFER // NO LOGS // SPEED OF LIGHT // P2P FILE DROP
+            BETTER THAN AIRDROP //
+            NO SERVER // ENCRYPTED // ZIP67 // DIRECT TRANSFER // NO LOGS // SPEED OF LIGHT // P2P FILE DROP // NO
+            SERVER
+            // ENCRYPTED // ZIP67 //
+        </div>
+    </div>
+
+    <header>
+        <h1>zip67</h1>
+        <div id="status-badge" class="status-badge">INIT...</div>
+    </header>
+
+    <main>
+        <div class="card" id="main-card">
+            <!-- STATE: LOBBY -->
+            <div id="view-lobby" class="drop-zone hidden">
+                <div class="big-icon">⏳</div>
+                <h2>Vibing in the lobby...</h2>
+                <p>Send link to a peer and wait for a peer to join.</p>
+            </div>
+
+            <!-- STATE: READY TO SEND -->
+            <div id="view-send-ready" class="drop-zone hidden">
+                <div class="big-icon">📦</div>
+                <h2>Locked in!</h2>
+                <p>Drag & Drop a file here<br>or click to browse.</p>
+                <input type="file" id="file-input" style="display: none;">
+            </div>
+
+            <!-- STATE: SENDING -->
+            <div id="view-sending" class="drop-zone hidden">
+                <div class="big-icon blink">🚀</div>
+                <h2>Sending the goods...</h2>
+                <p>Don't close the tab.</p>
+            </div>
+
+            <!-- STATE: RECEIVING -->
+            <div id="view-receiving" class="drop-zone hidden">
+                <div class="big-icon blink">📥</div>
+                <h2>Incoming goods...</h2>
+                <p id="receiving-filename">Unknown File</p>
+            </div>
+
+            <!-- STATE: COMPLETED -->
+            <div id="view-completed" class="drop-zone hidden">
+                <div class="big-icon">✅</div>
+                <h2>Received.</h2>
+                <p>No traces left. LFG!</p>
+                <button onclick="window.location.reload()"
+                    style="margin-top:1rem; padding:0.5rem 1rem; border:2px solid black; background:var(--accent); font-family:var(--font-mono); font-weight:bold; cursor:pointer; box-shadow:4px 4px 0px black;">SEND
+                    ANOTHER</button>
+            </div>
+
+            <!-- PROGRESS BAR -->
+            <div id="progress-container" class="progress-container">
+                <div id="progress-bar" class="progress-bar"></div>
+                <span id="progress-text" class="progress-text">0%</span>
+            </div>
+        </div>
+
+        <div id="room-info" class="room-info" title="Click to copy link">
+            LINK: <span id="room-link">...</span>
+        </div>
+    </main>
+
+    <script>
+        // --- UTILS ---
+        const $ = (id) => document.getElementById(id);
+
+        // More secure ID generation
+        const generateId = () => {
+            const array = new Uint8Array(16);
+            window.crypto.getRandomValues(array);
+            return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('').substring(0, 12);
+        };
+
+        const formatBytes = (bytes, decimals = 2) => {
+            if (!+bytes) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+        };
+
+        // --- STATE ---
+        let peer = null;
+        let conn = null;
+        let role = 'unknown'; // 'sender' | 'receiver'
+        const CHUNK_SIZE = 64 * 1024; // Increased to 64KB for better throughput
+        const DANGER_ZONE_SIZE = 1 * 1024 * 1024 * 1024; // 1GB warning threshold
+
+        // --- ELEMENTS ---
+        const els = {
+            badge: $('status-badge'),
+            link: $('room-link'),
+            views: {
+                lobby: $('view-lobby'),
+                sendReady: $('view-send-ready'),
+                sending: $('view-sending'),
+                receiving: $('view-receiving'),
+                completed: $('view-completed')
+            },
+            progress: {
+                container: $('progress-container'),
+                bar: $('progress-bar'),
+                text: $('progress-text')
+            },
+            fileInput: $('file-input'),
+            roomInfo: $('room-info'),
+            recvFilename: $('receiving-filename')
+        };
+
+        // --- UI HELPERS ---
+        function showView(name) {
+            Object.values(els.views).forEach(el => el.classList.add('hidden'));
+            if (els.views[name]) els.views[name].classList.remove('hidden');
+        }
+
+        function setStatus(text) {
+            els.badge.innerText = text;
+            if (text === 'LOCKED IN' || text === 'CONNECTED') {
+                els.badge.classList.add('active');
+            } else {
+                els.badge.classList.remove('active');
+            }
+        }
+
+        function updateProgress(percent) {
+            els.progress.container.style.display = 'block';
+            els.progress.bar.style.width = `${percent}%`;
+            els.progress.text.innerText = `${Math.round(percent)}%`;
+        }
+
+        function resetProgress() {
+            els.progress.container.style.display = 'none';
+            els.progress.bar.style.width = '0%';
+        }
+
+        // --- APP LOGIC ---
+
+        function init() {
+            let hash = window.location.hash.replace('#', '');
+
+            if (!hash) {
+                // SENDER MODE
+                role = 'sender';
+                hash = generateId();
+                window.location.hash = hash;
+                initPeer(hash);
+                showView('lobby');
+                setStatus("WAITING");
+            } else {
+                // RECEIVER MODE 
+                role = 'receiver';
+                initPeer(null);
+                showView('receiving');
+                setStatus("CONNECTING...");
+                // Note: UI shows "Incoming" style until connected, then switches logic
+            }
+
+            els.link.innerText = window.location.href;
+            els.roomInfo.onclick = () => {
+                navigator.clipboard.writeText(window.location.href);
+                // Brutalist alert
+                const originalText = els.roomInfo.innerHTML;
+                els.roomInfo.innerHTML = "<span>LINK COPIED!</span>";
+                setTimeout(() => els.roomInfo.innerHTML = originalText, 2000);
+            };
+        }
+
+        function initPeer(myId) {
+            peer = new Peer(myId, {
+                debug: 1,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:global.stun.twilio.com:3478' } // Added backup STUN
+                    ]
+                }
+            });
+
+            peer.on('open', (id) => {
+                console.log('My peer ID is: ' + id);
+
+                if (role === 'receiver') {
+                    const targetId = window.location.hash.replace('#', '');
+                    connectToPeer(targetId);
+                }
+            });
+
+            // Incoming connection handler
+            peer.on('connection', (c) => {
+                if (role === 'sender') {
+                    if (conn && conn.open) {
+                        console.warn("Rejecting intruder connection");
+                        c.close(); // SECURITY: Reject 3rd party
+                        return;
+                    }
+                    conn = c;
+                    setupConnection();
+                    showView('sendReady');
+                    setStatus("LOCKED IN");
+                } else {
+                    // Receiver usually initiates
+                }
+            });
+
+            peer.on('error', (err) => {
+                console.error(err);
+                if (err.type === 'peer-unavailable') {
+                    alert("Peer not found. Make sure the Sender is online and the URL is correct.");
+                } else {
+                    setStatus("ERROR");
+                }
+            });
+        }
+
+        function connectToPeer(targetId) {
+            console.log("Connecting to", targetId);
+            conn = peer.connect(targetId, {
+                reliable: true,
+                serialization: 'binary'
+            });
+            setupConnection();
+        }
+
+        function setupConnection() {
+            conn.on('open', () => {
+                console.log("Connected!");
+                if (role === 'receiver') {
+                    setStatus("CONNECTED");
+                    els.views.lobby.innerHTML = `<div class='big-icon'>⏳</div><h2>Waiting for files...</h2><p>Sender is choosing files.</p>`;
+                    showView('lobby');
+                }
+            });
+
+            conn.on('data', (data) => {
+                handleData(data);
+            });
+
+            conn.on('close', () => {
+                setStatus("DISCONNECTED");
+                alert("Peer disconnected. Refresh to reset.");
+                window.location.reload();
+            });
+        }
+
+        // --- FILE TRANSFER LOGIC ---
+
+        // SENDER SIDE
+        function setupDragAndDrop() {
+            const zone = els.views.sendReady;
+
+            zone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                zone.classList.add('active');
+            });
+
+            zone.addEventListener('dragleave', () => {
+                zone.classList.remove('active');
+            });
+
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('active');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) prepareFileTransfer(files[0]);
+            });
+
+            zone.addEventListener('click', () => els.fileInput.click());
+            els.fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) prepareFileTransfer(e.target.files[0]);
+            });
+        }
+
+        function prepareFileTransfer(file) {
+            if (!conn || !conn.open) {
+                alert("Peer not connected!");
+                return;
+            }
+
+            // WARNING FOR LARGE FILES
+            if (file.size > DANGER_ZONE_SIZE) {
+                const confirmed = confirm(`WARNING: File is ${formatBytes(file.size)}. Large files (>1GB) may crash the browser memory on receiving end. Proceed?`);
+                if (!confirmed) return;
+            }
+
+            startFileTransfer(file);
+        }
+
+        async function startFileTransfer(file) {
+            showView('sending');
+            setStatus("SENDING...");
+
+            // 1. Send Meta
+            conn.send({
+                type: 'meta',
+                name: file.name,
+                size: file.size,
+                mime: file.type
+            });
+
+            // 2. Chunk & Send
+            const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+            let offset = 0;
+
+            function sendNextChunk() {
+                if (offset >= file.size) {
+                    console.log("File sent.");
+                    conn.send({ type: 'end' });
+                    showView('completed');
+                    setStatus("DONE");
+                    resetProgress();
+                    return;
+                }
+
+                const slice = file.slice(offset, offset + CHUNK_SIZE);
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    // Check connection state before sending
+                    if (!conn || !conn.open) return;
+
+                    conn.send({
+                        type: 'chunk',
+                        data: e.target.result
+                    });
+
+                    offset += CHUNK_SIZE;
+                    const percent = (offset / file.size) * 100;
+                    updateProgress(Math.min(100, percent));
+
+                    // Backpressure control
+                    if (conn.bufferSize > 10 * 1024 * 1024) {
+                        setTimeout(sendNextChunk, 100); // Slow down if 10MB buffered
+                    } else {
+                        setTimeout(sendNextChunk, 0); // ASAP
+                    }
+                };
+
+                reader.readAsArrayBuffer(slice);
+            }
+
+            sendNextChunk();
+        }
+
+        // RECEIVER SIDE
+        let incomingFile = {
+            meta: null,
+            buffer: [],
+            receivedSize: 0
+        };
+
+        function handleData(data) {
+            if (data.type === 'meta') {
+                console.log("Meta received", data);
+                incomingFile.meta = data;
+                incomingFile.buffer = [];
+                incomingFile.receivedSize = 0;
+
+                showView('receiving');
+                els.recvFilename.innerText = `${data.name} (${formatBytes(data.size)})`;
+                setStatus("RECEIVING...");
+                updateProgress(0);
+
+            } else if (data.type === 'chunk') {
+                incomingFile.buffer.push(data.data);
+                incomingFile.receivedSize += data.data.byteLength;
+
+                if (incomingFile.meta) {
+                    const percent = (incomingFile.receivedSize / incomingFile.meta.size) * 100;
+                    updateProgress(percent);
+                }
+
+            } else if (data.type === 'end') {
+                console.log("Transfer complete.");
+                const blob = new Blob(incomingFile.buffer, { type: incomingFile.meta.mime });
+                downloadFile(blob, incomingFile.meta.name);
+
+                showView('completed');
+                setStatus("COMPLETED");
+                resetProgress();
+
+                // Clean up memory
+                incomingFile.buffer = [];
+            }
+        }
+
+        function downloadFile(blob, name) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // --- BOOTSTRAP ---
+        setupDragAndDrop();
+        init();
+
+    </script>
+</body>
+
+</html>
