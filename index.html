@@ -455,14 +455,17 @@
                 <p id="receiving-filename">Unknown File</p>
             </div>
 
-            <!-- STATE: COMPLETED -->
-            <div id="view-completed" class="drop-zone hidden">
-                <div class="big-icon">✅</div>
-                <h2>Received.</h2>
-                <p>No traces left. LFG!</p>
-                <button onclick="window.location.reload()"
-                    style="margin-top:1rem; padding:0.5rem 1rem; border:2px solid black; background:var(--accent); font-family:var(--font-mono); font-weight:bold; cursor:pointer; box-shadow:4px 4px 0px black;">SEND
-                    ANOTHER</button>
+            <!-- STATE: COMPLETED (FILE LIST) -->
+            <div id="view-completed" class="drop-zone hidden" style="cursor: default;">
+                <div class="big-icon">📂</div>
+                <h2>Files Received</h2>
+                <div id="file-list" class="file-list">
+                    <!-- Files injected here -->
+                </div>
+                <div class="actions" style="margin-top:1rem; display:flex; gap:1rem; justify-content:center;">
+                    <button onclick="downloadAll()" class="action-btn primary">DOWNLOAD ALL</button>
+                    <button onclick="window.location.reload()" class="action-btn">New Session</button>
+                </div>
             </div>
 
             <!-- PROGRESS BAR -->
@@ -475,18 +478,123 @@
         <div id="room-info" class="room-info" title="Click to copy link">
             LINK: <span id="room-link">...</span>
         </div>
+        <button onclick="window.location.href = window.location.pathname" class="refresh-btn">REFRESH ID ↻</button>
+
+        <style>
+            /* File List Styles */
+            .file-list {
+                width: 100%;
+                margin-top: 1rem;
+                max-height: 200px;
+                overflow-y: auto;
+                border: 2px solid #ddd;
+                text-align: left;
+            }
+
+            .file-item {
+                padding: 0.8rem;
+                border-bottom: 1px solid #ddd;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                background: #fff;
+                transition: background 0.2s;
+            }
+
+            .file-item:hover {
+                background: #f0f0f0;
+            }
+
+            .file-item:last-child {
+                border-bottom: none;
+            }
+
+            .file-info {
+                flex: 1;
+                overflow: hidden;
+                white-space: nowrap;
+                text-overflow: ellipsis;
+                font-size: 0.9rem;
+                font-family: var(--font-stack);
+            }
+
+            .file-actions button {
+                margin-left: 0.5rem;
+                padding: 0.3rem 0.6rem;
+                cursor: pointer;
+                border: 2px solid black;
+                font-weight: bold;
+                font-size: 0.8rem;
+                background: white;
+                box-shadow: 2px 2px 0px black;
+            }
+
+            .file-actions button:hover {
+                background: var(--accent);
+                transform: translate(-1px, -1px);
+                box-shadow: 3px 3px 0px black;
+            }
+
+            /* Action Buttons */
+            .action-btn {
+                padding: 0.8rem 1.5rem;
+                border: var(--border);
+                background: white;
+                font-family: var(--font-stack);
+                font-weight: bold;
+                cursor: pointer;
+                box-shadow: 4px 4px 0px var(--black);
+                transition: all 0.1s;
+                text-transform: uppercase;
+            }
+
+            .action-btn.primary {
+                background: var(--accent);
+            }
+
+            .action-btn:hover {
+                transform: translate(-2px, -2px);
+                box-shadow: 6px 6px 0px var(--black);
+            }
+
+            .action-btn:active {
+                transform: translate(2px, 2px);
+                box-shadow: 2px 2px 0px var(--black);
+            }
+
+            /* Button Style Injection */
+            .refresh-btn {
+                margin-top: 1rem;
+                padding: 0.5rem 1rem;
+                background: white;
+                border: var(--border);
+                font-family: var(--font-stack);
+                font-weight: bold;
+                cursor: pointer;
+                box-shadow: 4px 4px 0px var(--black);
+                transition: all 0.1s;
+                font-size: 0.9rem;
+            }
+
+            .refresh-btn:hover {
+                transform: translate(-2px, -2px);
+                box-shadow: 6px 6px 0px var(--black);
+                background: var(--secondary);
+                color: white;
+            }
+
+            .refresh-btn:active {
+                transform: translate(2px, 2px);
+                box-shadow: 2px 2px 0px var(--black);
+            }
+        </style>
     </main>
 
     <script>
         // --- UTILS ---
         const $ = (id) => document.getElementById(id);
 
-        // More secure ID generation
-        const generateId = () => {
-            const array = new Uint8Array(16);
-            window.crypto.getRandomValues(array);
-            return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('').substring(0, 12);
-        };
+        const generateId = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
         const formatBytes = (bytes, decimals = 2) => {
             if (!+bytes) return '0 Bytes';
@@ -497,12 +605,30 @@
             return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
         };
 
+        // EMOJI VIBE CHECK
+        const EMOJIS = ['👽', '💀', '👻', '🤖', '🤡', '💩', '👺', '👹', '👿', '🤠', '👾', '👀', '🧠', '👁', '👅', '🦴', '🦷', '👄', '💋', '🩸'];
+        function getVibeCheck(id1, id2) {
+            const combined = [id1, id2].sort().join('');
+            let hash = 0;
+            for (let i = 0; i < combined.length; i++) {
+                hash = ((hash << 5) - hash) + combined.charCodeAt(i);
+                hash |= 0;
+            }
+            const e1 = EMOJIS[Math.abs(hash) % EMOJIS.length];
+            const e2 = EMOJIS[Math.abs(hash >> 5) % EMOJIS.length];
+            const e3 = EMOJIS[Math.abs(hash >> 10) % EMOJIS.length];
+            return `${e1} ${e2} ${e3}`;
+        }
+
         // --- STATE ---
         let peer = null;
         let conn = null;
-        let role = 'unknown'; // 'sender' | 'receiver'
-        const CHUNK_SIZE = 64 * 1024; // Increased to 64KB for better throughput
-        const DANGER_ZONE_SIZE = 1 * 1024 * 1024 * 1024; // 1GB warning threshold
+        let myId = '';
+        let role = 'unknown';
+        const CHUNK_SIZE = 64 * 1024;
+        const DANGER_ZONE_SIZE = 1 * 1024 * 1024 * 1024;
+
+        let receivedFiles = []; // Store blobs: { name, blob, size }
 
         // --- ELEMENTS ---
         const els = {
@@ -522,7 +648,9 @@
             },
             fileInput: $('file-input'),
             roomInfo: $('room-info'),
-            recvFilename: $('receiving-filename')
+            recvFilename: $('receiving-filename'),
+            vibeCheck: $('vibe-check-display'),
+            fileList: $('file-list')
         };
 
         // --- UI HELPERS ---
@@ -551,79 +679,104 @@
             els.progress.bar.style.width = '0%';
         }
 
+        function renderFileList() {
+            els.fileList.innerHTML = '';
+            receivedFiles.forEach((file, index) => {
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                div.innerHTML = `
+                    <div class="file-info">
+                        <strong>${file.name}</strong> <br>
+                        <small>${formatBytes(file.size)}</small>
+                    </div>
+                    <div class="file-actions">
+                        <button onclick="downloadSingle(${index})">⬇</button>
+                    </div>
+                `;
+                els.fileList.appendChild(div);
+            });
+        }
+
+        function showVibeCheck(emojis) {
+            if (!els.vibeCheck) {
+                const div = document.createElement('div');
+                div.id = 'vibe-check-display';
+                div.style.cssText = "margin-top:1rem; font-size:1.5rem; border:3px solid black; padding:0.5rem; background:#fff; transform:rotate(-2deg); box-shadow:4px 4px 0 #000;";
+                div.innerHTML = `<span style="font-size:0.8rem; display:block; font-weight:bold; background:black; color:white; padding:0.1rem 0.5rem; margin-bottom:0.2rem;">VIBE CHECK</span>${emojis}`;
+                document.querySelectorAll('.drop-zone h2').forEach(h2 => {
+                    const clone = div.cloneNode(true);
+                    if (!h2.nextElementSibling || h2.nextElementSibling.id !== 'vibe-check-display') {
+                        h2.parentNode.insertBefore(clone, h2.nextSibling);
+                    }
+                });
+            }
+        }
+
         // --- APP LOGIC ---
 
         function init() {
             let hash = window.location.hash.replace('#', '');
 
             if (!hash) {
-                // SENDER MODE
                 role = 'sender';
-                hash = generateId();
-                window.location.hash = hash;
-                initPeer(hash);
+                myId = generateId();
+                window.location.hash = myId;
+                initPeer(myId);
                 showView('lobby');
                 setStatus("WAITING");
             } else {
-                // RECEIVER MODE 
                 role = 'receiver';
                 initPeer(null);
                 showView('receiving');
                 setStatus("CONNECTING...");
-                // Note: UI shows "Incoming" style until connected, then switches logic
             }
 
             els.link.innerText = window.location.href;
             els.roomInfo.onclick = () => {
                 navigator.clipboard.writeText(window.location.href);
-                // Brutalist alert
                 const originalText = els.roomInfo.innerHTML;
                 els.roomInfo.innerHTML = "<span>LINK COPIED!</span>";
                 setTimeout(() => els.roomInfo.innerHTML = originalText, 2000);
             };
         }
 
-        function initPeer(myId) {
-            peer = new Peer(myId, {
+        function initPeer(id) {
+            peer = new Peer(id, {
                 debug: 1,
                 config: {
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:global.stun.twilio.com:3478' } // Added backup STUN
+                        { urls: 'stun:global.stun.twilio.com:3478' }
                     ]
                 }
             });
 
             peer.on('open', (id) => {
                 console.log('My peer ID is: ' + id);
-
+                myId = id;
                 if (role === 'receiver') {
                     const targetId = window.location.hash.replace('#', '');
                     connectToPeer(targetId);
                 }
             });
 
-            // Incoming connection handler
             peer.on('connection', (c) => {
                 if (role === 'sender') {
                     if (conn && conn.open) {
-                        console.warn("Rejecting intruder connection");
-                        c.close(); // SECURITY: Reject 3rd party
+                        c.close();
                         return;
                     }
                     conn = c;
                     setupConnection();
                     showView('sendReady');
                     setStatus("LOCKED IN");
-                } else {
-                    // Receiver usually initiates
                 }
             });
 
             peer.on('error', (err) => {
                 console.error(err);
                 if (err.type === 'peer-unavailable') {
-                    alert("Peer not found. Make sure the Sender is online and the URL is correct.");
+                    alert("Peer not found. Check URL or if Sender is online.");
                 } else {
                     setStatus("ERROR");
                 }
@@ -631,22 +784,19 @@
         }
 
         function connectToPeer(targetId) {
-            console.log("Connecting to", targetId);
-            conn = peer.connect(targetId, {
-                reliable: true,
-                serialization: 'binary'
-            });
+            conn = peer.connect(targetId, { reliable: true, serialization: 'binary' });
             setupConnection();
         }
 
         function setupConnection() {
             conn.on('open', () => {
-                console.log("Connected!");
+                const vibes = getVibeCheck(myId, conn.peer);
                 if (role === 'receiver') {
                     setStatus("CONNECTED");
                     els.views.lobby.innerHTML = `<div class='big-icon'>⏳</div><h2>Waiting for files...</h2><p>Sender is choosing files.</p>`;
                     showView('lobby');
                 }
+                showVibeCheck(vibes);
             });
 
             conn.on('data', (data) => {
@@ -662,26 +812,15 @@
 
         // --- FILE TRANSFER LOGIC ---
 
-        // SENDER SIDE
         function setupDragAndDrop() {
             const zone = els.views.sendReady;
-
-            zone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                zone.classList.add('active');
-            });
-
-            zone.addEventListener('dragleave', () => {
-                zone.classList.remove('active');
-            });
-
+            zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('active'); });
+            zone.addEventListener('dragleave', () => { zone.classList.remove('active'); });
             zone.addEventListener('drop', (e) => {
                 e.preventDefault();
                 zone.classList.remove('active');
-                const files = e.dataTransfer.files;
-                if (files.length > 0) prepareFileTransfer(files[0]);
+                if (e.dataTransfer.files.length > 0) prepareFileTransfer(e.dataTransfer.files[0]);
             });
-
             zone.addEventListener('click', () => els.fileInput.click());
             els.fileInput.addEventListener('change', (e) => {
                 if (e.target.files.length > 0) prepareFileTransfer(e.target.files[0]);
@@ -689,119 +828,104 @@
         }
 
         function prepareFileTransfer(file) {
-            if (!conn || !conn.open) {
-                alert("Peer not connected!");
-                return;
-            }
-
-            // WARNING FOR LARGE FILES
+            if (!conn || !conn.open) { alert("Peer not connected!"); return; }
             if (file.size > DANGER_ZONE_SIZE) {
-                const confirmed = confirm(`WARNING: File is ${formatBytes(file.size)}. Large files (>1GB) may crash the browser memory on receiving end. Proceed?`);
-                if (!confirmed) return;
+                if (!confirm(`WARNING: File is ${formatBytes(file.size)}. Proceed?`)) return;
             }
-
             startFileTransfer(file);
         }
 
         async function startFileTransfer(file) {
             showView('sending');
             setStatus("SENDING...");
+            conn.send({ type: 'meta', name: file.name, size: file.size, mime: file.type });
 
-            // 1. Send Meta
-            conn.send({
-                type: 'meta',
-                name: file.name,
-                size: file.size,
-                mime: file.type
-            });
-
-            // 2. Chunk & Send
             const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
             let offset = 0;
 
             function sendNextChunk() {
                 if (offset >= file.size) {
-                    console.log("File sent.");
                     conn.send({ type: 'end' });
-                    showView('completed');
-                    setStatus("DONE");
-                    resetProgress();
+                    showView('completed'); // Shows list if receiver, back to ready if sender? 
+                    // Wait, sender should probably go back to 'sendReady' state after a delay or stay in completed?
+                    // For now, let's just reset sender to sendReady after 1s
+                    if (role === 'sender') {
+                        setStatus("DONE");
+                        setTimeout(() => {
+                            showView('sendReady');
+                            setStatus("LOCKED IN");
+                            resetProgress();
+                        }, 1000);
+                    }
                     return;
                 }
-
                 const slice = file.slice(offset, offset + CHUNK_SIZE);
                 const reader = new FileReader();
-
                 reader.onload = (e) => {
-                    // Check connection state before sending
                     if (!conn || !conn.open) return;
-
-                    conn.send({
-                        type: 'chunk',
-                        data: e.target.result
-                    });
-
+                    conn.send({ type: 'chunk', data: e.target.result });
                     offset += CHUNK_SIZE;
                     const percent = (offset / file.size) * 100;
                     updateProgress(Math.min(100, percent));
 
-                    // Backpressure control
                     if (conn.bufferSize > 10 * 1024 * 1024) {
-                        setTimeout(sendNextChunk, 100); // Slow down if 10MB buffered
+                        setTimeout(sendNextChunk, 100);
                     } else {
-                        setTimeout(sendNextChunk, 0); // ASAP
+                        setTimeout(sendNextChunk, 0);
                     }
                 };
-
                 reader.readAsArrayBuffer(slice);
             }
-
             sendNextChunk();
         }
 
         // RECEIVER SIDE
-        let incomingFile = {
-            meta: null,
-            buffer: [],
-            receivedSize: 0
-        };
+        let incomingFile = { meta: null, buffer: [], receivedSize: 0 };
 
         function handleData(data) {
             if (data.type === 'meta') {
-                console.log("Meta received", data);
                 incomingFile.meta = data;
                 incomingFile.buffer = [];
                 incomingFile.receivedSize = 0;
-
                 showView('receiving');
                 els.recvFilename.innerText = `${data.name} (${formatBytes(data.size)})`;
                 setStatus("RECEIVING...");
                 updateProgress(0);
-
             } else if (data.type === 'chunk') {
                 incomingFile.buffer.push(data.data);
                 incomingFile.receivedSize += data.data.byteLength;
-
-                if (incomingFile.meta) {
-                    const percent = (incomingFile.receivedSize / incomingFile.meta.size) * 100;
-                    updateProgress(percent);
-                }
-
+                if (incomingFile.meta) updateProgress((incomingFile.receivedSize / incomingFile.meta.size) * 100);
             } else if (data.type === 'end') {
-                console.log("Transfer complete.");
                 const blob = new Blob(incomingFile.buffer, { type: incomingFile.meta.mime });
-                downloadFile(blob, incomingFile.meta.name);
+                const fileObj = {
+                    name: incomingFile.meta.name,
+                    size: incomingFile.meta.size,
+                    blob: blob
+                };
+                receivedFiles.push(fileObj);
 
                 showView('completed');
-                setStatus("COMPLETED");
+                setStatus("FILE RECEIVED");
                 resetProgress();
+                renderFileList();
 
-                // Clean up memory
                 incomingFile.buffer = [];
             }
         }
 
-        function downloadFile(blob, name) {
+        function downloadSingle(index) {
+            const file = receivedFiles[index];
+            if (!file) return;
+            triggerDownload(file.blob, file.name);
+        }
+
+        function downloadAll() {
+            receivedFiles.forEach(file => {
+                triggerDownload(file.blob, file.name);
+            });
+        }
+
+        function triggerDownload(blob, name) {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -815,7 +939,6 @@
         // --- BOOTSTRAP ---
         setupDragAndDrop();
         init();
-
     </script>
 </body>
 
